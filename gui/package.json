@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "extract": "node scripts/extract-options.mjs",
-    "test": "node --test test/args.test.js test/apps.test.js test/fit.test.js test/flags.test.js test/validate.test.js test/notices.test.js",
+    "test": "node --test test/args.test.js test/apps.test.js test/fit.test.js test/flags.test.js test/validate.test.js test/notices.test.js test/presets.test.js test/encoders.test.js",
     "dist": "electron-builder --win portable"
   },
   "devDependencies": {
