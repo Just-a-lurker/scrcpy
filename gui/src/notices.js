@@ -3,7 +3,8 @@
 // test/notices.test.js checks them against those strings.
 //
 // match(line, ctx) returns { text, actions } or null. `actions` are ids the
-// renderer maps to buttons: 'pair', 'device', 'fit', 'quick', 'log'.
+// renderer maps to buttons: 'pair', 'device', 'fit', 'quick', 'log',
+// 'encoder', 'codecopts'.
 (function (root) {
   const RULES = [
     // adb.c: "Device is unauthorized:"
@@ -35,6 +36,17 @@
     { re: /Capture\/encoding error|Could not create (default )?video encoder|MediaCodec error|CodecException/,
       text: "The phone's video encoder refused these settings. Lower the video bit rate or resolution, or turn off Exact video size.",
       actions: ['quick'] },
+    // server: "Video encoder 'x' for h265 not found" (a value that is not an
+    // encoder name, such as a codec option typed into the wrong field)
+    { re: /Video encoder '(.*)' for (\w+) not found/,
+      text: (m) => `"${m[1]}" is not a ${m[2]} encoder on this phone. Video encoder takes an encoder name; settings such as bitrate-mode go in Video codec options. Clear Video encoder to let scrcpy choose.`,
+      actions: ['encoder'] },
+    // FFmpeg on the PC: the stream from the phone is not valid video. Seen
+    // when the encoder is given an option it handles badly (bitrate-mode=2
+    // on a MediaTek HEVC encoder).
+    { re: /No start code is found|Error splitting the input into NAL units/,
+      text: "The phone's encoder sent video this PC cannot decode. A Video codec option usually causes this: remove the last one you added.",
+      actions: ['codecopts'] },
     // server: "Audio encoding error", "Could not create (default) audio encoder"
     { re: /Audio encoding error|Could not create (default )?audio encoder/,
       text: 'The phone could not encode audio. Choose another audio codec, or turn on No audio.' },
