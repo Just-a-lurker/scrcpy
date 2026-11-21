@@ -64,3 +64,28 @@ test('stable JSON ignores key order', () => {
   assert.strictEqual(F.stableJson({ b: 1, a: { d: 2, c: [1, { y: 1, x: 2 }] } }), F.stableJson({ a: { c: [1, { x: 2, y: 1 }], d: 2 }, b: 1 }));
   assert.notStrictEqual(F.stableJson({ a: 1 }), F.stableJson({ a: 2 }));
 });
+
+test('codec options: read, set and remove one key, keep the rest as written', () => {
+  const s = 'profile=1,video-qp-max:int=34,vendor.x:string=a\\,b';
+  assert.deepStrictEqual(F.splitCodecOptions(s), ['profile=1', 'video-qp-max:int=34', 'vendor.x:string=a\\,b']);
+  assert.strictEqual(F.getCodecOption(s, 'video-qp-max'), '34');
+  assert.strictEqual(F.getCodecOption(s, 'i-frame-interval'), null);
+  assert.strictEqual(F.setCodecOption(s, 'video-qp-max', '30'), 'profile=1,video-qp-max=30,vendor.x:string=a\\,b');
+  assert.strictEqual(F.setCodecOption(s, 'i-frame-interval', '2'), s + ',i-frame-interval=2');
+  assert.strictEqual(F.setCodecOption(s, 'video-qp-max', null), 'profile=1,vendor.x:string=a\\,b');
+  assert.strictEqual(F.setCodecOption('', 'video-qp-max', '30'), 'video-qp-max=30');
+  assert.strictEqual(F.setCodecOption('video-qp-max=30', 'video-qp-max', ''), '');
+  assert.strictEqual(F.setCodecOption(undefined, 'i-frame-interval', null), '');
+});
+
+test('codec options: duplicates collapse to one entry, last value wins on read', () => {
+  const s = 'i-frame-interval=5, video-qp-max=30 ,i-frame-interval=2';
+  assert.strictEqual(F.getCodecOption(s, 'i-frame-interval'), '2');
+  assert.strictEqual(F.setCodecOption(s, 'i-frame-interval', '3'), 'i-frame-interval=3,video-qp-max=30');
+});
+
+test('codec option rows reach the scrcpy command', () => {
+  let v = F.setCodecOption('', 'video-qp-max', '30');
+  v = F.setCodecOption(v, 'i-frame-interval', '2');
+  assert.deepStrictEqual(args({ 'video-codec-options': { value: v } }), ['--video-codec-options=video-qp-max=30,i-frame-interval=2']);
+});

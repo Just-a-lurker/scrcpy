@@ -44,7 +44,32 @@ function entry(key) {
 const CLOSE_APP = '@close-app-on-exit';
 const FIT_WM = '@fit-phone-screen';
 
+// Encoder tuning rows. Each one edits a single entry inside the Video codec
+// options value, so the command, profiles and "Restart to apply" see it with
+// no extra state. Row keys are 'codec:<key>'.
+const CODEC_OPTS = 'video-codec-options';
+const CODEC_ROWS = [
+  {
+    key: 'video-qp-max', label: 'Limit blockiness', placeholder: 'e.g. 30', suggestions: ['28', '30', '32', '34', '36'],
+    min: 0, max: 51, def: null,
+    first: 'Caps how coarse the phone may compress the picture (QP, 0 to 51), so scene changes stay sharper. Lower is sharper but sends bigger bursts of data.',
+    rest: '\nWritten into Video codec options as video-qp-max=<n>. Empty leaves it to the encoder.' +
+      '\n30 to 34 suits USB. Over Wi-Fi, 34 to 36 keeps the bursts from causing stutter.' +
+      '\nNeeds Android 12+, and some encoders ignore it: if nothing changes, yours does.',
+  },
+  {
+    key: 'i-frame-interval', label: 'Full refresh every (s)', placeholder: 'e.g. 2', suggestions: ['1', '2', '3', '5', '10'],
+    min: 1, max: 60, def: '10',
+    first: 'Seconds between full-picture refreshes (key frames). Shorter clears blur after a scene change sooner, at the cost of one large frame each time.',
+    rest: '\nWritten into Video codec options as i-frame-interval=<n>. Empty keeps the scrcpy default of 10 s.' +
+      '\nSome encoders count this in frames at 60 fps, so at 30 fps the real spacing is about twice as long.' +
+      '\nOver Wi-Fi, use 3 to 5 or leave it empty.',
+  },
+];
+const codecRowKey = (k) => 'codec:' + k;
+
 function isSet(key) {
+  if (key.startsWith('codec:')) return F.getCodecOption(state[CODEC_OPTS]?.value, key.slice(6)) != null;
   if (key.startsWith('@')) return !!state[key]?.on;
   return A.isActive(byKey.get(key), state[key]);
 }
@@ -101,6 +126,7 @@ function renderSections() {
     for (const key of keys) {
       section.append(renderOption(byKey.get(key)));
       if (key === 'start-app') section.append(renderCloseAppRow());
+      if (key === 'video-bit-rate') section.append(...CODEC_ROWS.map(renderCodecRow));
     }
     (cat.id === 'quick' ? quickHost : allHost).append(section);
   }
@@ -334,6 +360,8 @@ function changed(...keys) {
     if (state[key] && !state[key].on && !(state[key].value ?? '').trim()) delete state[key];
     rows.get(key)?.sync();
   }
+  // The encoder rows read the Video codec options value.
+  if (keys.includes(CODEC_OPTS)) for (const c of CODEC_ROWS) rows.get(codecRowKey(c.key))?.sync();
   syncFit();
   renderNav();
   renderCommand();
@@ -933,6 +961,77 @@ function renderCloseAppRow() {
     row.classList.toggle('is-set', box.checked);
   };
   rows.set(key, { row, sync, search: (label + ' close app force-stop kill exit launcher').toLowerCase() });
+  sync();
+  return row;
+}
+
+// ---------- Encoder tuning rows (see CODEC_ROWS) ----------
+function renderCodecRow(c) {
+  const key = codecRowKey(c.key);
+  const id = controlId(key);
+  const listId = id + '-list';
+  const input = el('input', {
+    class: 'input mono', id, type: 'text', inputmode: 'numeric', spellcheck: 'false', autocomplete: 'off',
+    placeholder: c.placeholder, 'aria-label': c.label, list: listId,
+  });
+  const note = el('span', { class: 'note' });
+  const write = (value) => {
+    state[CODEC_OPTS] = { on: false, value: F.setCodecOption(state[CODEC_OPTS]?.value, c.key, value) };
+    changed(CODEC_OPTS, key);
+  };
+  input.addEventListener('input', () => {
+    const v = input.value.trim();
+    if (v === '') { note.textContent = ''; write(null); return; }
+    const n = Number(v);
+    if (!/^\d+$/.test(v) || n < c.min || n > c.max) {
+      note.textContent = `Use a whole number from ${c.min} to ${c.max}.`;
+      return;
+    }
+    note.textContent = '';
+    write(String(n));
+  });
+  const clear = el('button', {
+    class: 'clear', type: 'button', title: 'Clear', 'aria-label': 'Clear ' + c.label,
+    onclick: () => { input.value = ''; note.textContent = ''; write(null); },
+  }, '×');
+
+  const desc = el('p', { class: 'opt-desc' }, c.first, el('span', { class: 'rest' }, c.rest));
+  const more = el('button', {
+    class: 'more', type: 'button', 'aria-expanded': 'false',
+    onclick: () => {
+      const open = desc.classList.toggle('open');
+      more.textContent = open ? 'Less' : 'More';
+      more.setAttribute('aria-expanded', String(open));
+    },
+  }, 'More');
+  desc.append(more);
+
+  const row = el('div', { class: 'opt', dataset: { key } },
+    el('div', { class: 'opt-text' },
+      el('div', { class: 'opt-title' },
+        el('span', { class: 'opt-label' }, c.label),
+        el('code', { class: 'flag long', title: 'An entry in --video-codec-options' }, c.key + '=<n>'),
+        c.def ? el('span', { class: 'default-chip' }, 'Default ' + c.def) : null,
+        note,
+      ),
+      desc,
+    ),
+    el('div', { class: 'opt-control' },
+      el('datalist', { id: listId }, c.suggestions.map((v) => el('option', { value: v }))),
+      input, clear),
+  );
+  const sync = () => {
+    const v = F.getCodecOption(state[CODEC_OPTS]?.value, c.key);
+    // Keep an invalid entry the user is still typing.
+    const typing = document.activeElement === input && note.textContent;
+    if (!typing && input.value.trim() !== (v ?? '')) input.value = v ?? '';
+    clear.hidden = v == null;
+    row.classList.toggle('is-set', v != null);
+  };
+  rows.set(key, {
+    row, sync,
+    search: (c.label + ' ' + c.key + ' video codec options encoder quality blur blocky sharp qp key frame refresh').toLowerCase(),
+  });
   sync();
   return row;
 }

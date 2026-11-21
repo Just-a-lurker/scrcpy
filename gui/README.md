@@ -150,6 +150,25 @@ preview shows this as a `# when scrcpy exits:` line, and it is not included in
 browse the apps once. With `--new-display`, scrcpy already closes apps on the
 virtual display unless `--no-vd-destroy-content` is set.
 
+## Sharper scene changes
+
+Quick setup has two rows under *Video bit rate* that tune the phone's video
+encoder. They are not scrcpy flags. Each one writes its own entry into
+`--video-codec-options` and leaves any other entries as written.
+
+| Row | Writes | Effect |
+| --- | --- | --- |
+| *Limit blockiness* | `video-qp-max=<n>` (0–51) | Caps how coarse the encoder may compress, so the picture stays sharper after a scene change. Lower values are sharper but send bigger bursts of data. |
+| *Full refresh every (s)* | `i-frame-interval=<n>` | Sends a full picture this often instead of every 10 s, so blur clears sooner. Each refresh is a large frame. |
+
+On a Redmi M2012K10C (MediaTek HEVC encoder, 24 Mbps),
+`video-qp-max=30,i-frame-interval=2` cut the blur after scene changes. That
+encoder counts the refresh interval in frames at 60 fps, so at 30 fps the
+real spacing is about twice as long. The bursts are harmless over USB but can
+stutter over Wi-Fi; there, use a cap of 34–36 and a longer interval. Some
+encoders ignore these keys. `bitrate-mode=2` (constant bitrate) broke
+decoding on that phone ("No start code is found").
+
 ## Running a session
 
 - **Start** is disabled while a session starts, so a double click cannot

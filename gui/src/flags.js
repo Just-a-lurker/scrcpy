@@ -103,6 +103,50 @@
     return { selector: adbSelector(state), pkg: r.pkg ?? null, error: r.error ?? null };
   }
 
+  // --video-codec-options is a comma list of key[:type]=value, where a
+  // backslash escapes the next character (CodecOption.parse in the server).
+  // Items are kept exactly as written, so changing one key leaves the others
+  // untouched.
+  function splitCodecOptions(s) {
+    const items = [];
+    let buf = '';
+    let esc = false;
+    for (const c of String(s ?? '')) {
+      if (esc) { buf += c; esc = false; continue; }
+      if (c === '\\') { buf += c; esc = true; continue; }
+      if (c === ',') { items.push(buf); buf = ''; continue; }
+      buf += c;
+    }
+    items.push(buf);
+    return items.map((x) => x.trim()).filter(Boolean);
+  }
+
+  const codecKeyOf = (item) => /^[^:=]*/.exec(item)[0].trim();
+
+  // The value written for `key` (the last one wins, as in MediaFormat), or null.
+  function getCodecOption(s, key) {
+    let value = null;
+    for (const item of splitCodecOptions(s)) {
+      const eq = item.indexOf('=');
+      if (eq > 0 && codecKeyOf(item) === key) value = item.slice(eq + 1).trim();
+    }
+    return value;
+  }
+
+  // Set `key` to `value`, or remove it when value is null or ''. Keeps the
+  // position of an existing entry; a new one goes last.
+  function setCodecOption(s, key, value) {
+    const set = value != null && String(value).trim() !== '';
+    const out = [];
+    let placed = false;
+    for (const item of splitCodecOptions(s)) {
+      if (codecKeyOf(item) !== key) { out.push(item); continue; }
+      if (set && !placed) { out.push(`${key}=${String(value).trim()}`); placed = true; }
+    }
+    if (set && !placed) out.push(`${key}=${String(value).trim()}`);
+    return out.join(',');
+  }
+
   // JSON with sorted keys, so two equal states compare equal regardless of
   // the order their keys were added in.
   function stableJson(v) {
@@ -115,7 +159,7 @@
 
   const api = {
     EXACT, ORIENT, applyFit, disableFit, clearCaptureLock, clearVirtualDisplayConflicts,
-    adbSelector, closeAppPlan, stableJson,
+    adbSelector, closeAppPlan, stableJson, splitCodecOptions, getCodecOption, setCodecOption,
   };
   root.ScrcpyFlags = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
