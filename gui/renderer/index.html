@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>scrcpy Launcher</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-name">scrcpy Launcher</div>
+        <div class="brand-sub mono" id="versionLine">scrcpy</div>
+      </div>
+
+      <div class="field-group device-group">
+        <label for="deviceSelect" class="eyebrow">Device</label>
+        <div class="inline">
+          <select id="deviceSelect" class="input"></select>
+          <button id="refreshDevices" class="btn ghost" title="Refresh the device list">Refresh</button>
+          <button id="openPair" class="btn ghost" title="Pair and connect a device over Wi-Fi (adb pair)">Pair over Wi-Fi…</button>
+        </div>
+      </div>
+
+      <div class="field-group profile-group">
+        <label for="profileSelect" class="eyebrow">Profile</label>
+        <div class="inline">
+          <select id="profileSelect" class="input"></select>
+          <button id="saveProfileNow" class="btn ghost" disabled>Save</button>
+          <button id="saveProfile" class="btn ghost">Save as…</button>
+          <button id="deleteProfile" class="btn ghost" title="Delete the selected profile">Delete</button>
+        </div>
+        <form id="profileForm" class="profile-form" hidden>
+          <input id="profileName" class="input" placeholder="Profile name, e.g. Low latency" autocomplete="off">
+          <button type="submit" class="btn primary">Save</button>
+          <button type="button" id="profileCancel" class="btn ghost">Cancel</button>
+        </form>
+      </div>
+    </header>
+
+    <nav class="sidenav" aria-label="Option groups">
+      <div class="search">
+        <input id="search" class="input" type="search" placeholder="Search 112 options   Ctrl+F" title="Search options (Ctrl+F)" autocomplete="off" spellcheck="false">
+      </div>
+      <label class="only-set">
+        <input id="onlySet" type="checkbox" class="switch">
+        <span>Show only options I set</span>
+      </label>
+      <ul id="navList" class="nav-list"></ul>
+      <div class="nav-foot">
+        <div class="exe-box">
+          <span class="eyebrow">scrcpy.exe</span>
+          <span id="exePath" class="exe-path mono">Looking for scrcpy…</span>
+          <button id="pickExe" class="btn ghost small">Change…</button>
+        </div>
+        <div class="foot-row">
+          <label class="theme-pick">
+            <span class="eyebrow">Theme</span>
+            <select id="themeSelect" class="input">
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </label>
+          <button id="resetAll" class="btn ghost small reset">Clear all options</button>
+        </div>
+      </div>
+    </nav>
+
+    <main id="main" class="main" tabindex="-1">
+      <div id="quick"></div>
+      <section id="sec-fit" class="section fit-section">
+        <header class="section-head">
+          <h2>Fill the monitor</h2>
+          <p>Play landscape games fullscreen or in a window of an exact size, without black bars.</p>
+        </header>
+        <p id="fitFacts" class="fit-facts">Checking the monitor and phone sizes…</p>
+
+        <div class="fit-methods">
+          <article class="fit-method" id="vdCard">
+            <header class="fit-head">
+              <h3>Virtual display <span class="tag">Recommended</span></h3>
+              <label class="toggle-line">
+                <input id="vdOn" type="checkbox" class="switch">
+                <span>Use virtual display</span>
+              </label>
+            </header>
+            <p>Creates a separate screen of this size on the phone and opens the app there. Always landscape; the phone's own screen stays free.</p>
+            <div class="fit-controls">
+              <label class="fit-field">
+                <span class="eyebrow">Resolution</span>
+                <select id="vdRes" class="input"></select>
+              </label>
+              <span id="vdCustom" class="custom-res" hidden>
+                <input id="vdW" class="input mono" inputmode="numeric" aria-label="Width" placeholder="1920">
+                <span aria-hidden="true">×</span>
+                <input id="vdH" class="input mono" inputmode="numeric" aria-label="Height" placeholder="1080">
+              </span>
+              <label class="toggle-line fit-fs">
+                <input id="vdFs" type="checkbox" class="switch">
+                <span>Fullscreen</span>
+              </label>
+            </div>
+            <p id="vdEffect" class="fit-effect"></p>
+            <p id="vdNote" class="fit-note" hidden></p>
+            <p class="hint">Android 10+. A few games refuse a second screen; use the other method for those.</p>
+          </article>
+          <article class="fit-method" id="wmCard">
+            <header class="fit-head">
+              <h3>Resize the phone screen</h3>
+              <label class="toggle-line">
+                <input id="wmOn" type="checkbox" class="switch">
+                <span>Resize while mirroring</span>
+              </label>
+            </header>
+            <p>Changes the phone's own screen to this size while mirroring, then puts it back exactly as it was.</p>
+            <div class="fit-controls">
+              <label class="fit-field">
+                <span class="eyebrow">Resolution</span>
+                <select id="wmRes" class="input"></select>
+              </label>
+              <span id="wmCustom" class="custom-res" hidden>
+                <input id="wmW" class="input mono" inputmode="numeric" aria-label="Width" placeholder="1920">
+                <span aria-hidden="true">×</span>
+                <input id="wmH" class="input mono" inputmode="numeric" aria-label="Height" placeholder="1080">
+              </span>
+              <label class="fit-field">
+                <span class="eyebrow">Orientation</span>
+                <select id="wmOrient" class="input">
+                  <option value="">Follow the phone</option>
+                  <option value="landscape">Landscape from the start</option>
+                  <option value="landscape-flipped">Landscape, upside down</option>
+                </select>
+              </label>
+              <label class="toggle-line fit-fs">
+                <input id="wmFs" type="checkbox" class="switch">
+                <span>Fullscreen</span>
+              </label>
+            </div>
+            <p id="wmEffect" class="fit-effect"></p>
+            <p id="wmNote" class="fit-note" hidden></p>
+            <p class="hint">For games that refuse a second screen. Smaller sizes also lower the density, so text keeps its size.</p>
+            <div class="fit-actions">
+              <button id="fitWmReset" class="btn ghost small" type="button">Restore phone screen now</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <div id="sections"></div>
+      <section id="sec-info" class="section info-section">
+        <header class="section-head">
+          <h2>Device info</h2>
+          <p>Each button runs scrcpy once, prints the answer in the log, and exits.</p>
+        </header>
+        <div id="actions" class="actions"></div>
+      </section>
+      <p id="emptyState" class="empty" hidden></p>
+    </main>
+
+    <footer class="dock">
+      <div id="notice" class="notice" role="alert" hidden>
+        <span id="noticeText" class="notice-text"></span>
+        <span id="noticeActions" class="notice-actions"></span>
+        <button id="noticeClose" class="clear" type="button" aria-label="Dismiss">×</button>
+      </div>
+      <div class="dock-bar">
+        <div class="status" id="status" data-state="idle"><span class="dot"></span><span id="statusText">Ready</span></div>
+        <div class="cmd" id="cmdWrap">
+          <code id="cmdLine" class="cmd-line mono"></code>
+        </div>
+        <div class="dock-actions">
+          <button id="copyCmd" class="btn ghost">Copy command</button>
+          <button id="toggleLog" class="btn ghost" aria-expanded="false" aria-controls="logPanel">Show log</button>
+          <button id="restartBtn" class="btn" title="Settings changed while mirroring. Restart scrcpy to apply them." hidden>Restart to apply</button>
+          <button id="startStop" class="btn primary start" title="Start mirroring (Ctrl+Enter)">Start mirroring</button>
+        </div>
+      </div>
+      <div id="logPanel" class="log-panel" hidden>
+        <div class="log-tools">
+          <span class="eyebrow">Output</span>
+          <button id="clearLog" class="btn ghost small">Clear</button>
+        </div>
+        <pre id="log" class="log mono" aria-live="polite"></pre>
+      </div>
+    </footer>
+  </div>
+
+  <dialog id="pairDialog" class="dialog" aria-labelledby="pairTitle">
+    <header class="dialog-head">
+      <h2 id="pairTitle">Wireless debugging</h2>
+      <button id="pairClose" class="clear" type="button" aria-label="Close">×</button>
+    </header>
+
+    <p class="dialog-lead">
+      Android 11 or newer. Pair once per computer, then connect whenever the phone is on the same Wi-Fi.
+    </p>
+
+    <div class="pair-scan">
+      <button id="pairScan" class="btn ghost small" type="button">Find phones on this network</button>
+      <span id="pairScanStatus" class="hint"></span>
+    </div>
+    <ul id="pairFound" class="found" hidden></ul>
+
+    <form id="pairForm" class="pair-step" autocomplete="off">
+      <div class="step-head">
+        <span class="step-no">1</span>
+        <div>
+          <h3>Pair</h3>
+          <p class="hint">On the phone: Developer options › Wireless debugging › <b>Pair device with pairing code</b>.</p>
+        </div>
+      </div>
+      <div class="pair-grid">
+        <label>IP address <input id="pairHost" class="input mono" placeholder="192.168.1.23" spellcheck="false" required></label>
+        <label>Pairing port <input id="pairPort" class="input mono" placeholder="37199" inputmode="numeric" spellcheck="false" required></label>
+        <label>Pairing code <input id="pairCode" class="input mono code" placeholder="123456" inputmode="numeric" maxlength="6" spellcheck="false" required></label>
+        <button id="pairSubmit" class="btn primary" type="submit">Pair</button>
+      </div>
+    </form>
+
+    <form id="connectForm" class="pair-step" autocomplete="off">
+      <div class="step-head">
+        <span class="step-no">2</span>
+        <div>
+          <h3>Connect</h3>
+          <p class="hint">Use the <b>IP address &amp; Port</b> on the main Wireless debugging screen. It is a different port from the pairing one.</p>
+        </div>
+      </div>
+      <div class="pair-grid">
+        <label>IP address <input id="connectHost" class="input mono" placeholder="192.168.1.23" spellcheck="false" required></label>
+        <label>Port <input id="connectPort" class="input mono" placeholder="41235" inputmode="numeric" spellcheck="false" required></label>
+        <span></span>
+        <button id="connectSubmit" class="btn primary" type="submit">Connect</button>
+      </div>
+    </form>
+
+    <p id="pairResult" class="pair-result" role="status" hidden></p>
+  </dialog>
+
+  <dialog id="appDialog" class="dialog app-dialog" aria-labelledby="appTitle">
+    <header class="dialog-head">
+      <div>
+        <h2 id="appTitle">Pick the app to start</h2>
+        <p id="appDevice" class="hint"></p>
+      </div>
+      <button id="appClose" class="clear" type="button" aria-label="Close">×</button>
+    </header>
+
+    <div class="app-tools">
+      <input id="appSearch" class="input" type="search" placeholder="Search by name or package" autocomplete="off" spellcheck="false">
+      <div class="seg" role="radiogroup" aria-label="Which apps">
+        <label><input type="radio" name="appKind" value="user" checked><span>Installed</span></label>
+        <label><input type="radio" name="appKind" value="system"><span>System</span></label>
+        <label><input type="radio" name="appKind" value="all"><span>All</span></label>
+      </div>
+      <button id="appRefresh" class="btn ghost small" type="button">Rescan</button>
+    </div>
+
+    <label class="app-restart">
+      <input id="appRestart" type="checkbox" class="switch">
+      <span>Restart the app if it is already running <code class="flag">+</code></span>
+    </label>
+
+    <p id="appStatus" class="hint app-status"></p>
+    <ul id="appList" class="app-list" aria-label="Apps"></ul>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="../src/options.js"></script>
+  <script src="../src/meta.js"></script>
+  <script src="../src/args.js"></script>
+  <script src="../src/apps.js"></script>
+  <script src="../src/fit.js"></script>
+  <script src="../src/flags.js"></script>
+  <script src="../src/notices.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
