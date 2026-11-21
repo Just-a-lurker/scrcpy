@@ -1,0 +1,46 @@
+{
+  "name": "scrcpy-launcher",
+  "productName": "scrcpy Launcher",
+  "version": "0.2.0",
+  "description": "Desktop front-end for scrcpy that exposes every command-line flag as a form.",
+  "author": "scrcpy Launcher contributors",
+  "main": "main.js",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "electron .",
+    "extract": "node scripts/extract-options.mjs",
+    "test": "node --test test/args.test.js test/apps.test.js test/fit.test.js test/flags.test.js test/validate.test.js test/notices.test.js",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0"
+  },
+  "allowScripts": {
+    "electron@45.2.3": true,
+    "electron-winstaller": false
+  },
+  "build": {
+    "appId": "dev.scrcpy.launcher",
+    "productName": "scrcpy Launcher",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**",
+      "src/**",
+      "assets/**",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "assets/icon.ico"
+    },
+    "portable": {
+      "artifactName": "scrcpy-launcher-${version}-portable.exe"
+    }
+  }
+}
