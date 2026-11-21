@@ -1,10 +1,12 @@
-/* global ScrcpyOptions, ScrcpyMeta, ScrcpyArgs, ScrcpyApps, ScrcpyFit, ScrcpyFlags, ScrcpyNotices */
+/* global ScrcpyOptions, ScrcpyMeta, ScrcpyArgs, ScrcpyApps, ScrcpyFit, ScrcpyFlags, ScrcpyNotices, ScrcpyPresets, ScrcpyEncoders */
 'use strict';
 
 const OPTIONS = ScrcpyOptions;
 const META = ScrcpyMeta;
 const A = ScrcpyArgs;
 const F = ScrcpyFlags;
+const P = ScrcpyPresets;
+const ENC = ScrcpyEncoders;
 const api = window.scrcpy;
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -43,6 +45,9 @@ function entry(key) {
 // flags, so buildArgs never sees them (it only walks OPTIONS).
 const CLOSE_APP = '@close-app-on-exit';
 const FIT_WM = '@fit-phone-screen';
+// "<package>|<app name>" of the app last picked with Browse apps, so the
+// Game card can show a name instead of a package.
+const APP_NAME = '@start-app-name';
 
 // Encoder tuning rows. Each one edits a single entry inside the Video codec
 // options value, so the command, profiles and "Restart to apply" see it with
@@ -106,8 +111,8 @@ function renderSections() {
   const allHost = $('#sections');
   const quickHost = $('#quick');
   allHost.replaceChildren();
-  quickHost.replaceChildren();
   rows.clear();
+  quickHost.replaceChildren(renderQuickCards());
 
   for (const cat of META.categories) {
     const rank = (k) => { const i = META.pinned.indexOf(k); return i < 0 ? Infinity : i; };
@@ -128,7 +133,7 @@ function renderSections() {
       if (key === 'start-app') section.append(renderCloseAppRow());
       if (key === 'video-bit-rate') section.append(...CODEC_ROWS.map(renderCodecRow));
     }
-    (cat.id === 'quick' ? quickHost : allHost).append(section);
+    allHost.append(section);
   }
 }
 
@@ -200,8 +205,11 @@ function renderControl(opt, key, disabled) {
     };
   }
 
+  if (key === 'video-encoder') return renderEncoderControl(opt, key, disabled);
+
   const enumValues = META.enums[key];
   const platform = META.enumPlatform[key] || {};
+  if (opt.arg === 'optional' && enumValues) return renderOptionalEnum(opt, key, enumValues, disabled);
   let input;
   if (enumValues) {
     input = el('select', { class: 'input', id, disabled, 'aria-label': labelOf(opt) },
@@ -222,6 +230,8 @@ function renderControl(opt, key, disabled) {
   }
   const onInput = () => {
     entry(key).value = input.value;
+    // Typing a value for an optional flag switches it on.
+    if (opt.arg === 'optional' && input.value.trim()) entry(key).on = true;
     if (opt.arg === 'required' && key === 'serial') syncDeviceSelect();
     changed(key);
   };
@@ -267,13 +277,100 @@ function renderControl(opt, key, disabled) {
     sync: () => {
       const e = state[key] ?? {};
       if (input.value !== (e.value ?? '')) input.value = e.value ?? '';
-      if (toggle) {
-        toggle.checked = !!e.on;
-        if (!disabled) input.disabled = !e.on;
-      }
+      if (toggle) toggle.checked = !!e.on;
       clear.hidden = !(e.on || (e.value ?? '').trim());
     },
   };
+}
+
+// An optional flag with fixed values (e.g. --pause-on-exit[=mode]) as one
+// list: Off, On (no value), then each value.
+function renderOptionalEnum(opt, key, values, disabled) {
+  const ON = '__on__';
+  const sel = el('select', { class: 'input', id: controlId(key), disabled, 'aria-label': labelOf(opt) },
+    el('option', { value: '' }, 'Off'),
+    el('option', { value: ON }, 'On'),
+    values.map((v) => el('option', { value: v }, v)),
+  );
+  sel.addEventListener('change', () => {
+    if (!sel.value) delete state[key];
+    else state[key] = { on: true, value: sel.value === ON ? '' : sel.value };
+    changed(key);
+  });
+  const clear = el('button', {
+    class: 'clear', type: 'button', title: 'Clear', 'aria-label': 'Clear ' + labelOf(opt),
+    onclick: () => { delete state[key]; changed(key); },
+  }, '×');
+  const frag = document.createDocumentFragment();
+  frag.append(sel, clear);
+  return {
+    control: frag,
+    sync: () => {
+      const e = state[key];
+      sel.value = e?.on ? ((e.value ?? '').trim() || ON) : '';
+      clear.hidden = !e?.on;
+    },
+  };
+}
+
+// Video encoder: a list of this phone's encoders for the chosen codec, read
+// with --list-encoders on request, so a codec option cannot land here.
+let encoderCache = { key: null, list: [] };
+
+function renderEncoderControl(opt, key, disabled) {
+  const sel = el('select', { class: 'input', id: controlId(key), disabled, 'aria-label': labelOf(opt) });
+  sel.addEventListener('change', () => {
+    if (sel.value) state[key] = { on: false, value: sel.value };
+    else delete state[key];
+    changed(key);
+  });
+  const find = el('button', {
+    class: 'btn ghost small', type: 'button', disabled,
+    title: 'Ask the phone which encoders it has (scrcpy --list-encoders)',
+    onclick: () => loadEncoders(),
+  }, 'Find…');
+  const clear = el('button', {
+    class: 'clear', type: 'button', title: 'Clear', 'aria-label': 'Clear ' + labelOf(opt),
+    onclick: () => { delete state[key]; changed(key); },
+  }, '×');
+  const frag = document.createDocumentFragment();
+  frag.append(sel, find, clear);
+  return {
+    control: frag,
+    sync: () => {
+      const v = (state[key]?.value ?? '').trim();
+      const codec = (state['video-codec']?.value ?? '').trim() || 'h264';
+      const loaded = encoderCache.key === JSON.stringify(connectionArgs());
+      const list = loaded ? ENC.choices(encoderCache.list, 'video', codec) : [];
+      const opts = [el('option', { value: '' }, loaded ? `Default (scrcpy picks one of ${list.length})` : 'Default (scrcpy picks)')];
+      for (const e of list) {
+        opts.push(el('option', { value: e.name }, `${e.name}  (${e.hw === false ? 'software' : 'hardware'})`));
+      }
+      if (v && !list.some((e) => e.name === v)) {
+        opts.push(el('option', { value: v }, loaded ? `${v}  (not a ${codec} encoder on this phone)` : v));
+      }
+      sel.replaceChildren(...opts);
+      sel.value = v;
+      find.textContent = loaded ? 'Rescan' : 'Find…';
+      clear.hidden = !v;
+    },
+  };
+}
+
+async function loadEncoders() {
+  if (!requireExe()) return;
+  toast('Asking the phone for its encoders…');
+  const { out } = await captureRun([...connectionArgs(), '--list-encoders']);
+  const list = ENC.parseEncoders(out);
+  if (!list.length) {
+    const err = out.split(/\r?\n/).find((l) => /^(ERROR|WARN):/.test(l));
+    toast(err ? err.replace(/^\w+:\s*/, '') : 'The phone listed no encoders.');
+    return;
+  }
+  encoderCache = { key: JSON.stringify(connectionArgs()), list };
+  rows.get('video-encoder')?.sync();
+  const codec = (state['video-codec']?.value ?? '').trim() || 'h264';
+  toast(`Found ${ENC.choices(list, 'video', codec).length} ${codec} encoders. Pick one under Video encoder.`);
 }
 
 function renderNav() {
@@ -284,14 +381,15 @@ function renderNav() {
     const keys = optionKeys.filter((k) => META.category[k] === cat.id);
     const setCount = keys.filter(isSet).length;
     return item('sec-' + cat.id, cat.label, setCount
-      ? el('span', { class: 'set-count', title: `${setCount} set` }, String(setCount))
-      : el('span', { class: 'count' }, String(keys.length)));
+      ? el('span', { class: 'set-count', title: `${setCount} of ${keys.length} options set` }, `${setCount} set`)
+      : null);
   };
   const heading = (text) => el('li', { class: 'nav-heading', 'aria-hidden': 'true' }, text);
   const quick = META.categories.find((c) => c.id === 'quick');
+  const preset = P.PRESETS.find((p) => p.id === P.current(state));
   list.replaceChildren(
     heading('Setup'),
-    catItem(quick),
+    item('sec-quick', quick.label, el('span', { class: 'set-count', title: 'Picture preset' }, preset ? preset.label : 'Custom')),
     item('sec-fit', 'Fill the monitor', activeFit() ? el('span', { class: 'set-count' }, 'On') : null),
     heading('All options'),
     ...META.categories.filter((c) => c.id !== 'quick').map(catItem),
@@ -306,9 +404,9 @@ function renderActions() {
   host.replaceChildren(...actionKeys.map((key) => {
     const opt = byKey.get(key);
     return el('button', {
-      class: 'btn ghost', type: 'button', title: opt.text,
+      class: 'btn ghost', type: 'button', title: `--${opt.name}\n${opt.text}`,
       onclick: () => runAction(key),
-    }, '--' + opt.name);
+    }, META.actionLabels?.[key] ?? '--' + opt.name);
   }));
 }
 
@@ -324,6 +422,7 @@ function exeLabel() {
 function renderCommand() {
   const args = sessionArgs();
   const code = $('#cmdLine');
+  $('#cmdWrap').title = A.commandLine(exeLabel(), args);
   code.replaceChildren(el('span', { class: 'exe' }, exeLabel()));
   for (const a of args) {
     code.append(' ');
@@ -360,14 +459,20 @@ function changed(...keys) {
     if (state[key] && !state[key].on && !(state[key].value ?? '').trim()) delete state[key];
     rows.get(key)?.sync();
   }
-  // The encoder rows read the Video codec options value.
+  // The encoder rows read the Video codec options value; the encoder list
+  // depends on the codec.
   if (keys.includes(CODEC_OPTS)) for (const c of CODEC_ROWS) rows.get(codecRowKey(c.key))?.sync();
+  if (keys.includes('video-codec')) rows.get('video-encoder')?.sync();
+  // The Close-app row's note depends on Start app, which the Game card edits.
+  if (keys.includes('start-app')) rows.get(CLOSE_APP)?.sync();
   syncFit();
+  syncCards();
   renderNav();
   renderCommand();
   applyFilter();
   markProfileDirty();
   updateSessionHint();
+  updateReadiness();
   schedulePersist();
 }
 
@@ -392,9 +497,11 @@ function syncAll() {
   for (const { sync } of rows.values()) sync();
   syncDeviceSelect();
   syncFit();
+  syncCards();
   renderNav();
   renderCommand();
   applyFilter();
+  updateReadiness();
 }
 
 // ---------- Search / filter ----------
@@ -412,6 +519,7 @@ function applyFilter() {
   }
   $('#sec-info').hidden = !!(q || onlySet);
   $('#sec-fit').hidden = !!(q || onlySet);
+  $('#sec-quick').hidden = !!(q || onlySet);
   const empty = $('#emptyState');
   empty.hidden = visible > 0;
   if (!visible) {
@@ -462,6 +570,7 @@ async function refreshDevicesOnce() {
   sel.disabled = true;
   const res = await api.devices();
   devices = res.devices ?? [];
+  devicesError = res.error ?? null;
   sel.replaceChildren(el('option', { value: '' }, devices.length ? 'Any (the only connected device)' : res.error ? 'adb not available' : 'No devices found'));
   const STATE_LABEL = {
     unauthorized: 'not allowed yet: accept the prompt on the phone',
@@ -485,6 +594,47 @@ async function refreshDevicesOnce() {
   if (list) list.replaceChildren(...devices.map((d) => el('option', { value: d.serial })));
   syncDeviceSelect();
   updateFitFacts();
+  devicesChecked = true;
+  updateReadiness();
+}
+
+// ---------- Readiness (the status next to Start, between sessions) ----------
+let devicesError = null;
+// Until the first device check, the status keeps saying "Checking…" rather
+// than flashing "scrcpy.exe not found" or "Phone not connected".
+let devicesChecked = false;
+
+function readiness() {
+  if (!exe) return { state: 'error', text: 'scrcpy.exe not found', title: 'Locate scrcpy.exe below the option groups.' };
+  if (devicesError) return { state: 'warn', text: 'adb not available', title: devicesError };
+  const NOT_READY = {
+    unauthorized: ['Allow USB debugging on the phone', 'Unlock the phone and accept "Allow USB debugging?".'],
+    offline: ['Phone offline', 'Reconnect the cable or Wi-Fi.'],
+    authorizing: ['Waiting for the phone', ''],
+  };
+  const notConnected = { state: 'warn', text: 'Phone not connected', title: 'Plug it in with USB debugging on, or use Pair over Wi-Fi.' };
+  const ready = (d) => ({ state: 'ready', text: `Ready · ${d.model || d.serial} (${d.transport === 'tcpip' ? 'Wi-Fi' : 'USB'})`, title: d.serial });
+  const sel = adbSelector();
+  let pool = devices;
+  if (sel[0] === '-s') pool = devices.filter((d) => d.serial === sel[1]);
+  else if (sel[0] === '-d') pool = devices.filter((d) => d.transport === 'usb');
+  else if (sel[0] === '-e') pool = devices.filter((d) => d.transport === 'tcpip');
+  const usable = pool.filter((d) => d.state === 'device');
+  if (usable.length === 1) return ready(usable[0]);
+  if (usable.length > 1) return { state: 'warn', text: 'Choose a phone', title: 'Several phones are connected. Choose one under Device.' };
+  const waiting = pool.find((d) => NOT_READY[d.state]);
+  if (waiting) {
+    const [text, title] = NOT_READY[waiting.state];
+    return { state: 'warn', text, title };
+  }
+  return notConnected;
+}
+
+function updateReadiness() {
+  if (session || starting || !devicesChecked) return;
+  const r = readiness();
+  setStatus(r.state, r.text);
+  $('#status').title = r.title ?? '';
 }
 
 function syncDeviceSelect() {
@@ -758,7 +908,17 @@ const NOTICE_ACTIONS = {
   fit: ['Fill the monitor', () => scrollToSection('sec-fit')],
   quick: ['Quick setup', () => scrollToSection('sec-quick')],
   log: ['Show log', () => showLog()],
+  encoder: ['Video encoder', () => focusRow('video-encoder')],
+  codecopts: ['Video codec options', () => focusRow(CODEC_OPTS)],
 };
+
+function focusRow(key) {
+  $('#search').value = '';
+  $('#onlySet').checked = false;
+  applyFilter();
+  rows.get(key)?.row.scrollIntoView({ block: 'center' });
+  document.getElementById(controlId(key))?.focus();
+}
 
 // The first matching line of `text`, as a notice. Returns true if shown.
 function noticeFor(text, newDisplay) {
@@ -852,6 +1012,9 @@ api.onExit(async ({ id, code, signal }) => {
   if (ended.closeApp) await closeAppAfterExit(ended.closeApp);
   if (ended.resized) await restorePhoneSize(ended.resized);
   if (ended.restartAfter) start();
+  // After a clean stop, show whether the next start will work. An error
+  // stays in the status until something changes.
+  else if (ended.stopping || code === 0) updateReadiness();
 });
 
 // Run scrcpy without logging, and resolve with its full output.
@@ -966,18 +1129,21 @@ function renderCloseAppRow() {
 }
 
 // ---------- Encoder tuning rows (see CODEC_ROWS) ----------
-function renderCodecRow(c) {
-  const key = codecRowKey(c.key);
-  const id = controlId(key);
+// One number input bound to an entry inside Video codec options. Used by the
+// option row and by the Picture card.
+function codecInput(c, id) {
   const listId = id + '-list';
   const input = el('input', {
     class: 'input mono', id, type: 'text', inputmode: 'numeric', spellcheck: 'false', autocomplete: 'off',
     placeholder: c.placeholder, 'aria-label': c.label, list: listId,
   });
+  const datalist = el('datalist', { id: listId }, c.suggestions.map((v) => el('option', { value: v })));
   const note = el('span', { class: 'note' });
   const write = (value) => {
-    state[CODEC_OPTS] = { on: false, value: F.setCodecOption(state[CODEC_OPTS]?.value, c.key, value) };
-    changed(CODEC_OPTS, key);
+    const next = F.setCodecOption(state[CODEC_OPTS]?.value, c.key, value);
+    if (next) state[CODEC_OPTS] = { on: false, value: next };
+    else delete state[CODEC_OPTS];
+    changed(CODEC_OPTS, codecRowKey(c.key));
   };
   input.addEventListener('input', () => {
     const v = input.value.trim();
@@ -990,9 +1156,23 @@ function renderCodecRow(c) {
     note.textContent = '';
     write(String(n));
   });
+  const sync = () => {
+    const v = F.getCodecOption(state[CODEC_OPTS]?.value, c.key);
+    // Keep an invalid entry the user is still typing.
+    const typing = document.activeElement === input && note.textContent;
+    if (!typing && input.value.trim() !== (v ?? '')) input.value = v ?? '';
+    return v;
+  };
+  const reset = () => { input.value = ''; note.textContent = ''; write(null); };
+  return { input, datalist, note, sync, reset };
+}
+
+function renderCodecRow(c) {
+  const key = codecRowKey(c.key);
+  const { input, datalist, note, sync: syncInput, reset } = codecInput(c, controlId(key));
   const clear = el('button', {
     class: 'clear', type: 'button', title: 'Clear', 'aria-label': 'Clear ' + c.label,
-    onclick: () => { input.value = ''; note.textContent = ''; write(null); },
+    onclick: reset,
   }, '×');
 
   const desc = el('p', { class: 'opt-desc' }, c.first, el('span', { class: 'rest' }, c.rest));
@@ -1016,15 +1196,10 @@ function renderCodecRow(c) {
       ),
       desc,
     ),
-    el('div', { class: 'opt-control' },
-      el('datalist', { id: listId }, c.suggestions.map((v) => el('option', { value: v }))),
-      input, clear),
+    el('div', { class: 'opt-control' }, datalist, input, clear),
   );
   const sync = () => {
-    const v = F.getCodecOption(state[CODEC_OPTS]?.value, c.key);
-    // Keep an invalid entry the user is still typing.
-    const typing = document.activeElement === input && note.textContent;
-    if (!typing && input.value.trim() !== (v ?? '')) input.value = v ?? '';
+    const v = syncInput();
     clear.hidden = v == null;
     row.classList.toggle('is-set', v != null);
   };
@@ -1034,6 +1209,170 @@ function renderCodecRow(c) {
   });
   sync();
   return row;
+}
+
+// ---------- Quick setup: four task cards ----------
+// The cards edit the same state as the flag rows under All options, so both
+// always agree. cardSyncs redraw the cards after any change.
+let cardSyncs = [];
+function syncCards() {
+  for (const f of cardSyncs) f();
+}
+
+function qcard(title, lead, ...body) {
+  return el('article', { class: 'qcard' },
+    el('h3', {}, title),
+    lead ? el('p', { class: 'qlead' }, lead) : null,
+    ...body);
+}
+
+// A checkbox line bound to a flag or launcher key.
+function qtoggle(key, label) {
+  const box = el('input', {
+    type: 'checkbox', class: 'switch',
+    onchange: () => { entry(key).on = box.checked; changed(key); },
+  });
+  cardSyncs.push(() => { box.checked = !!state[key]?.on; });
+  return { line: el('label', { class: 'qtoggle' }, box, el('span', {}, label)), box };
+}
+
+// A labelled field for the Picture details, bound to a flag value.
+function qfield(label, control) {
+  return el('label', { class: 'qfield' }, el('span', { class: 'eyebrow' }, label), control);
+}
+
+function qselect(key, values, defaultLabel) {
+  const s = el('select', { class: 'input' },
+    el('option', { value: '' }, defaultLabel),
+    values.map((v) => el('option', { value: v }, v)));
+  s.addEventListener('change', () => {
+    if (s.value) state[key] = { on: false, value: s.value };
+    else delete state[key];
+    changed(key);
+  });
+  cardSyncs.push(() => { s.value = state[key]?.value ?? ''; });
+  return s;
+}
+
+function qtext(key, placeholder, suggestions) {
+  const listId = 'q-' + key + '-list';
+  const i = el('input', {
+    class: 'input mono', type: 'text', placeholder, spellcheck: 'false', autocomplete: 'off', list: listId,
+  });
+  i.addEventListener('input', () => { entry(key).value = i.value; changed(key); });
+  cardSyncs.push(() => { if (document.activeElement !== i) i.value = state[key]?.value ?? ''; });
+  const frag = document.createDocumentFragment();
+  frag.append(el('datalist', { id: listId }, suggestions.map((v) => el('option', { value: v }))), i);
+  return frag;
+}
+
+// The start app without its "+" prefix, and its name when known.
+function startApp() {
+  const pkg = (state['start-app']?.value ?? '').trim().replace(/^\+/, '');
+  if (!pkg) return null;
+  const [savedPkg, savedName] = (state[APP_NAME]?.value ?? '').split('|');
+  const name = savedPkg === pkg ? savedName : appsCache.apps.find((a) => a.pkg === pkg)?.name;
+  return { pkg, name: name || null };
+}
+
+function renderGameCard() {
+  const value = el('div', { class: 'qvalue' });
+  const pick = el('button', { class: 'btn small', type: 'button', onclick: () => openAppPicker() }, 'Choose app…');
+  const clear = el('button', {
+    class: 'btn ghost small', type: 'button',
+    onclick: () => { delete state['start-app']; delete state[APP_NAME]; changed('start-app', APP_NAME); },
+  }, 'Clear');
+  const close = qtoggle(CLOSE_APP, 'Close it when I stop');
+  cardSyncs.push(() => {
+    const app = startApp();
+    value.replaceChildren(app
+      ? el('span', {}, el('b', {}, app.name ?? app.pkg), app.name ? el('code', { class: 'qcode' }, app.pkg) : null)
+      : el('span', { class: 'qmuted' }, 'None. Mirroring shows whatever is on the phone.'));
+    pick.textContent = app ? 'Change…' : 'Choose app…';
+    clear.hidden = !app;
+    close.box.disabled = !app;
+  });
+  return qcard('Game', 'Opened on the phone when mirroring starts.',
+    value, el('div', { class: 'qactions' }, pick, clear), close.line);
+}
+
+function renderPictureCard() {
+  const seg = el('div', { class: 'seg qseg', role: 'radiogroup', 'aria-label': 'Picture preset' });
+  const radios = [];
+  for (const p of [...P.PRESETS, { id: 'custom', label: 'Custom' }]) {
+    const r = el('input', { type: 'radio', name: 'picturePreset', value: p.id, disabled: p.id === 'custom' });
+    r.addEventListener('change', () => {
+      if (p.id === 'custom') return;
+      P.apply(state, p.id);
+      changed('video-codec', 'video-bit-rate', 'video-buffer', CODEC_OPTS);
+    });
+    radios.push(r);
+    seg.append(el('label', { title: p.note ?? 'Your own settings. Change them under Details.' }, r, el('span', {}, p.label)));
+  }
+  const summary = el('p', { class: 'qvalue qsummary' });
+  const note = el('p', { class: 'qhint' });
+
+  const qp = codecInput(CODEC_ROWS[0], 'q-video-qp-max');
+  const refresh = codecInput(CODEC_ROWS[1], 'q-i-frame-interval');
+  cardSyncs.push(qp.sync, refresh.sync);
+  const details = el('div', { class: 'qdetails', hidden: true },
+    qfield('Codec', qselect('video-codec', META.enums['video-codec'], 'h264 (default)')),
+    qfield('Bit rate', qtext('video-bit-rate', '8M (default)', META.suggestions['video-bit-rate'])),
+    qfield('Limit blockiness (0–51)', el('span', { class: 'qinline' }, qp.datalist, qp.input, qp.note)),
+    qfield('Full refresh every (s)', el('span', { class: 'qinline' }, refresh.datalist, refresh.input, refresh.note)),
+    qfield('Buffer (ms)', qtext('video-buffer', '0 (default)', ['0', '33', '50', '100'])),
+  );
+  const more = el('button', { class: 'more qmore', type: 'button', 'aria-expanded': 'false' }, 'Details');
+  more.addEventListener('click', () => {
+    details.hidden = !details.hidden;
+    more.textContent = details.hidden ? 'Details' : 'Hide details';
+    more.setAttribute('aria-expanded', String(!details.hidden));
+  });
+  cardSyncs.push(() => {
+    const cur = P.current(state);
+    for (const r of radios) r.checked = r.value === cur;
+    summary.textContent = P.summary(state);
+    note.textContent = P.PRESETS.find((p) => p.id === cur)?.note ?? 'Your own settings. Picking a preset replaces them.';
+  });
+  return qcard('Picture', null, seg, summary, note, more, details);
+}
+
+function renderScreenCard() {
+  const value = el('div', { class: 'qvalue' });
+  const btn = el('button', { class: 'btn small', type: 'button', onclick: () => scrollToSection('sec-fit') }, 'Change…');
+  const ORIENT_TEXT = { landscape: 'landscape from the start', 'landscape-flipped': 'landscape, upside down' };
+  cardSyncs.push(() => {
+    const card = activeFit();
+    if (!card) {
+      value.replaceChildren(el('span', { class: 'qmuted' }, 'Off. Landscape games show black bars on a wide monitor.'));
+      btn.textContent = 'Set up…';
+      return;
+    }
+    const res = fitRes(card).replace('x', ' × ');
+    const how = [
+      card === 'wm' ? (ORIENT_TEXT[state[WM_ORIENT]?.value] ?? 'follows the phone') : null,
+      fitFullscreen(card) ? 'fullscreen' : 'in a window',
+    ].filter(Boolean).join(', ');
+    value.replaceChildren(el('b', {}, card === 'vd' ? 'Virtual display' : 'Phone screen resized'), ` to ${res}, ${how}.`);
+    btn.textContent = 'Change…';
+  });
+  return qcard('Screen', 'How the game fills your monitor.', value, el('div', { class: 'qactions' }, btn));
+}
+
+function renderPhoneCard() {
+  return qcard('Phone', 'What the phone does while you play.',
+    qtoggle('turn-screen-off', 'Turn its screen off while mirroring').line,
+    qtoggle('stay-awake', 'Keep it awake while plugged in').line,
+    qtoggle('power-off-on-close', 'Turn its screen off when I stop').line);
+}
+
+function renderQuickCards() {
+  cardSyncs = [];
+  const quick = META.categories.find((c) => c.id === 'quick');
+  // No data-cat: the option filter must not hide this section for having no rows.
+  return el('section', { class: 'section', id: 'sec-quick' },
+    el('header', { class: 'section-head' }, el('h2', {}, quick.label), el('p', {}, quick.blurb)),
+    el('div', { class: 'qcards' }, renderGameCard(), renderPictureCard(), renderScreenCard(), renderPhoneCard()));
 }
 
 // ---------- App picker (--list-apps) ----------
@@ -1115,8 +1454,9 @@ function renderAppList() {
 function pickApp(app) {
   const value = ($('#appRestart').checked ? '+' : '') + app.pkg;
   state['start-app'] = { on: false, value };
+  state[APP_NAME] = { on: false, value: `${app.pkg}|${app.name}` };
   $('#appDialog').close();
-  changed('start-app');
+  changed('start-app', APP_NAME);
   rows.get(CLOSE_APP)?.sync();
   toast(`Start app set to ${app.name}`);
 }
@@ -1342,6 +1682,7 @@ async function updateFitFacts() {
   }
   $('#fitFacts').replaceChildren(...parts);
   syncFit();
+  syncCards(); // the Screen card shows the monitor size when none is chosen
   renderCommand();
 }
 
@@ -1443,6 +1784,7 @@ function showExe() {
   span.textContent = exe ?? 'Not found. Locate scrcpy.exe';
   span.title = exe ?? '';
   renderCommand();
+  updateReadiness();
 }
 
 // ---------- Profiles ----------
@@ -1557,6 +1899,46 @@ function wire() {
   $('#startStop').addEventListener('click', () => (session ? stop() : start()));
   $('#toggleLog').addEventListener('click', () => showLog($('#logPanel').hidden));
   $('#clearLog').addEventListener('click', () => $('#log').replaceChildren());
+
+  // The command preview is one line until expanded.
+  $('#cmdExpand').addEventListener('click', () => {
+    const open = $('#cmdWrap').classList.toggle('collapsed') === false;
+    $('#cmdExpand').textContent = open ? 'Show less' : 'Show all';
+    $('#cmdExpand').setAttribute('aria-expanded', String(open));
+  });
+
+  // The log is a drawer: drag its top edge (or use the arrow keys) to resize.
+  const logEl = $('#log');
+  const setLogHeight = (h) => {
+    const max = Math.max(140, Math.round(window.innerHeight * 0.7));
+    const v = Math.min(max, Math.max(100, Math.round(h)));
+    logEl.style.height = v + 'px';
+    try { localStorage.setItem('logHeight', String(v)); } catch {}
+  };
+  try {
+    const saved = Number(localStorage.getItem('logHeight'));
+    if (saved) logEl.style.height = saved + 'px';
+  } catch {}
+  const handle = $('#logResize');
+  handle.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    const startY = e.clientY;
+    const startH = logEl.getBoundingClientRect().height;
+    const move = (ev) => setLogHeight(startH + (startY - ev.clientY));
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+  });
+  handle.addEventListener('keydown', (e) => {
+    const step = e.key === 'ArrowUp' ? 24 : e.key === 'ArrowDown' ? -24 : 0;
+    if (!step) return;
+    e.preventDefault();
+    setLogHeight(logEl.getBoundingClientRect().height + step);
+  });
   $('#copyCmd').addEventListener('click', async () => {
     const text = A.commandLine(exe ?? 'scrcpy', sessionArgs());
     try {

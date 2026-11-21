@@ -2,8 +2,9 @@
    Layout: top bar (device, profile), a rail of groups on the left, the
    option list, and a dock at the bottom that always shows the exact command
    Start will run. Black on white (white on black in dark mode); square
-   corners; hairline rules instead of cards and tints. The only colour is
-   red, for errors. */
+   corners; hairline rules instead of tints. The only boxes are ruled grids
+   (Quick setup cards, Fill the monitor). The only colour is red, for
+   errors. */
 :root {
   --bg: #ffffff;
   --bg-2: #f5f5f5;          /* hover, quiet fills */
@@ -276,7 +277,43 @@ input.input.mono { font-family: var(--font-mono); font-size: var(--fs-sm); }
 .section-head p { margin: 0; color: var(--ink-2); font-size: var(--fs-sm); }
 
 .actions { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; }
-.actions .btn { font-family: var(--font-mono); font-size: var(--fs-sm); }
+.actions .btn { font-size: var(--fs-sm); }
+
+/* Quick setup: four task cards in a ruled grid (hairlines, no fills). */
+.qcards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 14px;
+  background: var(--line-strong);
+  border: 1px solid var(--line-strong);
+}
+.qcard { display: flex; flex-direction: column; gap: 9px; padding: 16px 18px; background: var(--bg); min-width: 0; }
+.qcard h3 { margin: 0; font-size: var(--fs-lg); font-weight: 700; }
+.qlead { margin: -5px 0 0; font-size: var(--fs-sm); color: var(--ink-2); }
+.qvalue { margin: 0; font-size: var(--fs-md); overflow-wrap: anywhere; }
+.qvalue b { font-weight: 600; }
+.qcode { margin-left: 8px; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-3); }
+.qmuted { color: var(--ink-2); }
+.qsummary { font-weight: 600; font-variant-numeric: tabular-nums; }
+.qhint { margin: 0; font-size: var(--fs-sm); color: var(--ink-2); max-width: 60ch; }
+.qactions { display: flex; gap: 8px; flex-wrap: wrap; }
+.qtoggle { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); cursor: pointer; }
+.qtoggle:has(input:disabled) { color: var(--ink-3); cursor: default; }
+.qseg { align-self: flex-start; flex-wrap: wrap; }
+.seg input:disabled { cursor: default; }
+.seg input:disabled:not(:checked) + span { color: var(--ink-3); }
+.qmore { align-self: flex-start; margin-left: 0; }
+.qdetails {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.qfield { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.qfield .input { width: 100%; }
+.qinline { display: flex; flex-direction: column; gap: 3px; }
 
 /* Option rows */
 .opt {
@@ -384,14 +421,37 @@ input.input.mono { font-family: var(--font-mono); font-size: var(--fs-sm); }
 
 .status { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--ink-2); white-space: nowrap; flex: none; min-width: 120px; }
 .status .dot { width: 8px; height: 8px; border: 1.5px solid var(--ink-3); }
+/* Between sessions: ready = filled square, warn = what to fix, in bold. */
+.status[data-state="ready"] { color: var(--ink); }
+.status[data-state="ready"] .dot { background: var(--ink); border-color: var(--ink); }
+.status[data-state="warn"] { color: var(--ink); font-weight: 600; }
+.status[data-state="warn"] .dot { border-color: var(--ink); }
 .status[data-state="running"] { color: var(--ink); font-weight: 600; }
 .status[data-state="running"] .dot { background: var(--ink); border-color: var(--ink); animation: blink 1.6s steps(2, start) infinite; }
 .status[data-state="error"] { color: var(--err); font-weight: 600; }
 .status[data-state="error"] .dot { background: var(--err); border-color: var(--err); }
 @keyframes blink { to { opacity: 0.25; } }
 
-.cmd { flex: 1 1 auto; min-width: 0; background: var(--console-bg); padding: 7px 10px; max-height: 92px; overflow: auto; }
-.cmd-line { display: block; font-size: var(--fs-sm); color: var(--console-fg); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.cmd { flex: 1 1 auto; min-width: 0; display: flex; align-items: flex-start; gap: 10px; background: var(--console-bg); padding: 7px 10px; max-height: 92px; overflow: auto; }
+.cmd-line { flex: 1 1 auto; min-width: 0; display: block; font-size: var(--fs-sm); color: var(--console-fg); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+/* One line by default: the command is a readout, Start is the action. */
+.cmd.collapsed { overflow: hidden; }
+.cmd.collapsed .cmd-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmd-toggle {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--console-dim);
+  font: inherit;
+  font-size: var(--fs-xs);
+  line-height: 1.6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.cmd-toggle:hover { color: var(--console-fg); }
+.cmd-toggle:focus-visible { outline: 2px solid var(--console-fg); outline-offset: 2px; }
 .cmd-line .exe { color: var(--console-dim); }
 .cmd-line .tok-flag { color: var(--console-fg); }
 .cmd-line .tok-val { color: var(--console-fg); font-weight: 700; }
@@ -402,6 +462,8 @@ input.input.mono { font-family: var(--font-mono); font-size: var(--fs-sm); }
 .btn.stop:hover:not(:disabled) { background: var(--ink); color: var(--invert); }
 
 .log-panel { border-top: 1px solid var(--line); background: var(--console-bg); }
+.log-resize { height: 7px; cursor: ns-resize; border-bottom: 1px solid #2a2a2a; }
+.log-resize:hover, .log-resize:focus-visible { background: #3a3a3a; outline: none; }
 .log-tools { display: flex; align-items: center; justify-content: space-between; padding: 6px 20px 0; }
 .log-tools .eyebrow { color: var(--console-dim); }
 .log-tools .btn { background: transparent; color: var(--console-fg); border-color: #3a3a3a; }
@@ -543,8 +605,12 @@ input.input.mono { font-family: var(--font-mono); font-size: var(--fs-sm); }
   .opt { grid-template-columns: minmax(0, 1fr); }
   .opt-control { justify-content: flex-start; }
 }
+@media (max-width: 900px) {
+  .qcards { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 860px) {
   .app { grid-template-columns: 180px minmax(0, 1fr); }
+  .foot-row { flex-wrap: wrap; }
   .dock-bar { flex-wrap: wrap; }
   .cmd { order: 3; flex-basis: 100%; }
   .main { padding-inline: 16px; }

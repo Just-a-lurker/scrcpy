@@ -38,10 +38,10 @@ scrcpy by itself. The development screenshot hooks are disabled in this build.
 npm test
 ```
 
-Covers the flag builder, the app-list parser, the screen-fit math, the flags
-the Fill-the-monitor cards write, the error messages (against scrcpy's exact
-wording), and every check the main process applies to
-values before they reach adb.
+Covers the flag builder, the app-list and encoder-list parsers, the
+screen-fit math, the flags the Fill-the-monitor cards and the picture presets
+write, the error messages (against scrcpy's exact wording), and every check
+the main process applies to values before they reach adb.
 
 ## How the options stay in sync
 
@@ -55,6 +55,34 @@ npm run extract
 Re-run it after pulling upstream changes. `src/meta.js` adds the presentation
 layer: groups, dropdown values (taken from the `parse_*` functions in `cli.c`),
 suggestions, and Windows-only notes. `npm test` fails if a new flag has no group.
+
+## Quick setup
+
+Quick setup is four cards for what most sessions need. They edit the same
+flags as the rows under All options, so the two always agree, and the command
+line shows exactly what they set.
+
+| Card | Sets |
+| --- | --- |
+| **Game** | `--start-app` (with **Choose app…**) and *Close it when I stop* |
+| **Picture** | A preset, or the fields under **Details**: `--video-codec`, `--video-bit-rate`, `--video-buffer`, and the `video-qp-max` / `i-frame-interval` entries of `--video-codec-options` |
+| **Screen** | A summary of Fill the monitor, with a link to change it |
+| **Phone** | `--turn-screen-off`, `--stay-awake`, `--power-off-on-close` |
+
+Picture presets (`src/presets.js`):
+
+| Preset | Flags |
+| --- | --- |
+| USB sharp | H.265, 24M, `video-qp-max=30,i-frame-interval=2` |
+| Wi-Fi smooth | H.265, 16M, `video-qp-max=34,i-frame-interval=5`, `--video-buffer=50` (a starting point, not tested) |
+| scrcpy default | None of these flags: H.264 at 8 Mbps |
+
+The active preset is read back from the flags. Any hand edit shows as
+*Custom*, and picking a preset keeps codec options it does not own.
+
+Next to **Start**, the status says whether a session can start: scrcpy.exe not
+found, adb not available, phone not connected, phone waiting for USB debugging
+approval, several phones, or *Ready* with the phone's name.
 
 ## Wireless debugging (adb pair)
 
@@ -125,7 +153,7 @@ Many hardware encoders require sizes in multiples of 16. scrcpy then
 rescales the picture to fit: 1080 rows become 1072, and 900 become 896.
 Every frame is resampled, which makes it look slightly soft. When a card's
 resolution is not a multiple of 16, the card also turns on
-`--ignore-video-encoder-constraints` (shown in Quick setup as *Exact video
+`--ignore-video-encoder-constraints` (shown in the Video group as *Exact video
 size*), so the encoder gets the exact size. On a Redmi M2012K10C (MediaTek
 HEVC encoder), a headless test recording came out at 1080x2400 with the flag,
 and 1072x2400 without it. If a phone's encoder refuses the exact size, turn
@@ -133,7 +161,8 @@ the option off.
 
 ## Picking the start app
 
-**Browse apps…** on the *Start app* option (Device group) runs
+**Choose app…** on the Game card, or **Browse apps…** on the *Start app*
+option (Device group), runs
 `scrcpy --list-apps` with your connection options. It lists the launchable
 apps under Installed, System and All, with search. Picking one sets
 `--start-app=<package>`. Turn on *Restart the app if it is already running* to
@@ -152,9 +181,10 @@ virtual display unless `--no-vd-destroy-content` is set.
 
 ## Sharper scene changes
 
-Quick setup has two rows under *Video bit rate* that tune the phone's video
-encoder. They are not scrcpy flags. Each one writes its own entry into
-`--video-codec-options` and leaves any other entries as written.
+The Video group has two rows under *Video bit rate*, also under **Details** on
+the Picture card, that tune the phone's video encoder. They are not scrcpy
+flags. Each one writes its own entry into `--video-codec-options` and leaves
+any other entries as written.
 
 | Row | Writes | Effect |
 | --- | --- | --- |
@@ -169,6 +199,11 @@ stutter over Wi-Fi; there, use a cap of 34–36 and a longer interval. Some
 encoders ignore these keys. `bitrate-mode=2` (constant bitrate) broke
 decoding on that phone ("No start code is found").
 
+*Video encoder* is a list, not a text field. **Find…** runs
+`scrcpy --list-encoders` and offers the phone's encoders for the chosen codec,
+hardware first (`src/encoders.js`). A saved value the phone does not have is
+marked as such.
+
 ## Running a session
 
 - **Start** is disabled while a session starts, so a double click cannot
@@ -181,8 +216,12 @@ decoding on that phone ("No start code is found").
 - The status shows the live frame rate when *Print FPS* is on.
 - Common failures are explained above the command line with what to do: phone
   not allowed yet, no phone found, more than one phone, phone offline, video
-  encoder refused the settings, virtual display not available, or an option
-  the phone's Android version does not support.
+  encoder refused the settings, a codec option typed into *Video encoder*, a
+  stream the PC cannot decode (usually a bad codec option), virtual display not
+  available, or an option the phone's Android version does not support.
+- The command line is one line; **Show all** expands it. The log opens as a
+  drawer under it; drag its top edge, or focus it and use the arrow keys, to
+  resize it.
 - The device list updates by itself when a phone is plugged in, unplugged,
   allowed, or drops off Wi-Fi (`adb track-devices`).
 
@@ -190,6 +229,8 @@ decoding on that phone ("No start code is found").
 
 - Flags are always passed as `--name=value`. The three optional-argument flags
   (`--new-display`, `--tcpip`, `--pause-on-exit`) only work in that form.
+  Typing a value into one switches it on; *Pause on exit* is a single list
+  (Off, On, or a mode).
 - `--list-*`, `--version` and `--help` run on their own from **Device info**,
   with your connection options, and print to the log.
 - `--v4l2-sink` and `--v4l2-buffer` are shown but marked Linux only.

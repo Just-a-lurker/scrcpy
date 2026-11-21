@@ -153,7 +153,7 @@
       <section id="sec-info" class="section info-section">
         <header class="section-head">
           <h2>Device info</h2>
-          <p>Each button runs scrcpy once, prints the answer in the log, and exits.</p>
+          <p>Each button asks the phone or scrcpy once and prints the answer in the log.</p>
         </header>
         <div id="actions" class="actions"></div>
       </section>
@@ -167,9 +167,10 @@
         <button id="noticeClose" class="clear" type="button" aria-label="Dismiss">×</button>
       </div>
       <div class="dock-bar">
-        <div class="status" id="status" data-state="idle"><span class="dot"></span><span id="statusText">Ready</span></div>
-        <div class="cmd" id="cmdWrap">
+        <div class="status" id="status" data-state="idle"><span class="dot"></span><span id="statusText">Checking…</span></div>
+        <div class="cmd collapsed" id="cmdWrap">
           <code id="cmdLine" class="cmd-line mono"></code>
+          <button id="cmdExpand" class="cmd-toggle" type="button" aria-expanded="false" aria-controls="cmdLine">Show all</button>
         </div>
         <div class="dock-actions">
           <button id="copyCmd" class="btn ghost">Copy command</button>
@@ -179,6 +180,7 @@
         </div>
       </div>
       <div id="logPanel" class="log-panel" hidden>
+        <div id="logResize" class="log-resize" role="separator" aria-orientation="horizontal" aria-label="Resize the log (arrow keys)" tabindex="0" title="Drag to resize"></div>
         <div class="log-tools">
           <span class="eyebrow">Output</span>
           <button id="clearLog" class="btn ghost small">Clear</button>
@@ -275,6 +277,8 @@
   <script src="../src/apps.js"></script>
   <script src="../src/fit.js"></script>
   <script src="../src/flags.js"></script>
+  <script src="../src/presets.js"></script>
+  <script src="../src/encoders.js"></script>
   <script src="../src/notices.js"></script>
   <script src="app.js"></script>
 </body>

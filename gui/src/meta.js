@@ -6,7 +6,7 @@
 
   const meta = {
     categories: [
-      { id: 'quick', label: 'Quick setup', blurb: 'What most sessions need. Everything else is under All options.' },
+      { id: 'quick', label: 'Quick setup', blurb: 'The four things most sessions need. Every flag is under All options.' },
       { id: 'connection', label: 'Connection', blurb: 'Which device to reach and how scrcpy talks to adb.' },
       { id: 'video', label: 'Video', blurb: 'What gets captured on the device and how it is encoded.' },
       { id: 'audio', label: 'Audio', blurb: 'Audio capture, codec and playback buffering.' },
@@ -26,10 +26,12 @@
       port: 'connection', 'force-adb-forward': 'connection', 'tunnel-host': 'connection',
       'tunnel-port': 'connection', 'kill-adb-on-close': 'connection', otg: 'connection',
 
-      'video-source': 'video', 'video-codec': 'quick', 'video-bit-rate': 'quick', 'video-codec-options': 'video',
-      'video-encoder': 'video', 'max-size': 'video', 'max-fps': 'quick', 'min-size-alignment': 'video',
+      // Quick setup is drawn as cards by the renderer, so every flag lives in
+      // its own group here.
+      'video-source': 'video', 'video-codec': 'video', 'video-bit-rate': 'video', 'video-codec-options': 'video',
+      'video-encoder': 'video', 'max-size': 'video', 'max-fps': 'video', 'min-size-alignment': 'video',
       crop: 'video', angle: 'video', 'capture-orientation': 'video', 'display-id': 'video', 'no-video': 'video',
-      'no-video-playback': 'video', 'video-buffer': 'quick', 'ignore-video-encoder-constraints': 'quick',
+      'no-video-playback': 'video', 'video-buffer': 'video', 'ignore-video-encoder-constraints': 'video',
       'no-downsize-on-error': 'video', 'print-fps': 'video', hwdec: 'video',
 
       'audio-bit-rate': 'audio', 'audio-buffer': 'audio', 'audio-codec': 'audio', 'audio-codec-options': 'audio',
@@ -53,8 +55,8 @@
       'prefer-text': 'input', 'raw-key-events': 'input', 'legacy-paste': 'input',
       'no-clipboard-autosync': 'input', 'shortcut-mod': 'input',
 
-      'start-app': 'quick', 'turn-screen-off': 'quick', 'stay-awake': 'quick', 'show-touches': 'device', 'keep-active': 'device',
-      'power-off-on-close': 'quick', 'no-power-on': 'device', 'screen-off-timeout': 'device',
+      'start-app': 'device', 'turn-screen-off': 'device', 'stay-awake': 'device', 'show-touches': 'device', 'keep-active': 'device',
+      'power-off-on-close': 'device', 'no-power-on': 'device', 'screen-off-timeout': 'device',
       'push-target': 'device', 'no-cleanup': 'device',
 
       record: 'recording', 'record-format': 'recording', 'record-orientation': 'recording',
@@ -66,22 +68,25 @@
     // Shown first within their group, in this order; the rest follow in
     // cli.c order.
     pinned: [
-      'start-app', 'video-codec', 'video-bit-rate', 'ignore-video-encoder-constraints', 'max-fps', 'video-buffer',
-      'turn-screen-off', 'stay-awake', 'power-off-on-close',
       'serial', 'tcpip', 'select-usb', 'select-tcpip',
-      'video-source', 'max-size', 'video-bit-rate', 'max-fps', 'video-codec',
+      'video-codec', 'video-bit-rate', 'video-codec-options', 'video-encoder', 'video-buffer', 'max-fps',
+      'ignore-video-encoder-constraints', 'video-source', 'max-size',
       'audio-source', 'no-audio', 'audio-codec',
       'camera-facing', 'camera-id', 'camera-size',
       'window-title', 'fullscreen', 'always-on-top', 'window-borderless',
       'new-display',
       'keyboard', 'mouse', 'gamepad',
-      'start-app', 'turn-screen-off', 'stay-awake',
+      'start-app', 'turn-screen-off', 'stay-awake', 'power-off-on-close',
       'record', 'record-format', 'time-limit',
     ],
 
     // Options that print something and exit. They run on their own from the
     // Device info panel instead of being part of the mirroring command.
     actions: ['list-displays', 'list-cameras', 'list-camera-sizes', 'list-encoders', 'list-apps', 'version', 'help'],
+    actionLabels: {
+      'list-displays': 'Displays', 'list-cameras': 'Cameras', 'list-camera-sizes': 'Camera sizes',
+      'list-encoders': 'Encoders', 'list-apps': 'Apps', version: 'scrcpy version', help: 'scrcpy help',
+    },
 
     // Strict choices (rendered as a select).
     enums: {
