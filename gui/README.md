@@ -22,15 +22,31 @@ portable .exe), `../build*/app/`, then `PATH`. The Windows release zip
 works: point it at the `scrcpy.exe` inside it, and `adb.exe` next to it is
 used for the device list.
 
-## Build a portable .exe
+## Build
 
 ```sh
-npm run dist
+npm run pack
 ```
 
-This writes `dist/scrcpy-launcher-<version>-portable.exe`, a single unsigned
-file that runs without installing. Put it next to `scrcpy.exe` and it finds
-scrcpy by itself. The development screenshot hooks are disabled in this build.
+This writes `dist/win-unpacked/`, a folder that runs without installing: start
+`scrcpy Launcher.exe` inside it. Nothing is compressed or unpacked, so it
+builds in seconds and starts at once. Copy `scrcpy.exe` (with the files from
+the scrcpy release) into that folder and the launcher finds it by itself. The
+build is unsigned, and the development screenshot hooks are disabled in it.
+
+Close the launcher before rebuilding, because the build replaces that folder.
+
+### Portable .exe (optional)
+
+```sh
+npx electron-builder --win portable
+```
+
+This writes `dist/scrcpy-launcher-<version>-portable.exe`, a single file you
+can copy anywhere; put it next to `scrcpy.exe` and it finds scrcpy by itself.
+It takes a few minutes to build, because everything is compressed, and on
+every launch it unpacks the whole app (about 360 MB) to a folder under
+`%TEMP%`, deleting it on exit. For everyday use, the folder build is faster.
 
 ## Test
 
