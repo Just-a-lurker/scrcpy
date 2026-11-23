@@ -55,3 +55,16 @@ test('wm plan: same width keeps density, smaller scales it', () => {
 test('no bars when the ratios match', () => {
   assert.strictEqual(F.barsFor({ width: 1080, height: 1920 }, fhd), null);
 });
+
+test('labels monitors for the Play on list', () => {
+  const main = { width: 2560, height: 1440, x: 0, y: 0, primary: true, current: false };
+  const side = { width: 1920, height: 1080, x: 2560, y: 0, primary: false, current: true };
+  assert.strictEqual(F.monitorLabel(main, 0), 'Monitor 1 · 2560 × 1440 (16:9) · main');
+  assert.strictEqual(F.monitorLabel(side, 1), 'Monitor 2 · 1920 × 1080 (16:9) · this window');
+  assert.strictEqual(F.monitorLabel({ ...side, current: false }, 1), 'Monitor 2 · 1920 × 1080 (16:9)');
+});
+
+test('places the window just inside the monitor corner, also left of or above the main one', () => {
+  assert.deepStrictEqual(F.windowPosFor({ x: 2560, y: 0 }), { x: 2600, y: 40 });
+  assert.deepStrictEqual(F.windowPosFor({ x: -1920, y: -200 }), { x: -1880, y: -160 });
+});

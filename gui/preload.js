@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('scrcpy', {
   fitApply: (selector, size, density, rotation = null) => ipcRenderer.invoke('adb:fitApply', { selector, size, density, rotation }),
   fitRestore: (selector) => ipcRenderer.invoke('adb:fitRestore', { selector }),
   screenSize: () => ipcRenderer.invoke('screen:current'),
+  screenList: () => ipcRenderer.invoke('screen:list'),
   run: (args) => ipcRenderer.invoke('scrcpy:run', args),
   stop: (id) => ipcRenderer.invoke('scrcpy:stop', id),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),

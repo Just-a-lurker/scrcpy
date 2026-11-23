@@ -409,6 +409,28 @@ ipcMain.handle('screen:current', () => {
   };
 });
 
+// Every monitor, in real pixels, with its top-left corner in the virtual
+// desktop (what scrcpy --window-x/--window-y use).
+ipcMain.handle('screen:list', () => {
+  const primary = screen.getPrimaryDisplay().id;
+  const current = (win ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay()).id;
+  return screen.getAllDisplays().map((d) => {
+    const o = process.platform === 'win32'
+      ? screen.dipToScreenPoint({ x: d.bounds.x, y: d.bounds.y })
+      : { x: d.bounds.x * d.scaleFactor, y: d.bounds.y * d.scaleFactor };
+    return {
+      id: String(d.id),
+      width: Math.round(d.size.width * d.scaleFactor),
+      height: Math.round(d.size.height * d.scaleFactor),
+      x: Math.round(o.x),
+      y: Math.round(o.y),
+      scaleFactor: d.scaleFactor,
+      primary: d.id === primary,
+      current: d.id === current,
+    };
+  });
+});
+
 // ---------- scrcpy processes ----------
 
 const children = new Map(); // id -> ChildProcess

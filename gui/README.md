@@ -127,6 +127,12 @@ bars above and below. The **Fill the monitor** section shows the sizes it
 detected and offers two methods. Each is an on/off switch, and turning one on
 turns the other off.
 
+With more than one monitor, **Play on** picks the screen scrcpy opens on, windowed
+or fullscreen. scrcpy has no monitor option, so the launcher writes
+`--window-x` and `--window-y` just inside that monitor's top-left corner
+(fullscreen goes to the monitor the window is on). The sizes below follow the
+chosen monitor. If it is unplugged later, the launcher goes back to automatic.
+
 Each card has its own **Resolution** (the monitor's size, the standard 16:9
 sizes that fit on it, or a custom W × H) and its own **Fullscreen** switch:
 

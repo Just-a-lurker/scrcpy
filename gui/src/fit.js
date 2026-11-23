@@ -111,7 +111,20 @@
     return { where: 'left and right', each: Math.round((mw - w) / 2) };
   }
 
-  const api = { ratioLabel, parseRes, virtualDisplaySize, resolutionChoices, wmPlan, phoneOverride, barsFor, fitsPhone };
+  // Label for the "Play on" list: "Monitor 2 · 1920 × 1080 (16:9) · main".
+  function monitorLabel(d, index) {
+    const tags = [d.primary ? 'main' : null, d.current ? 'this window' : null].filter(Boolean);
+    return `Monitor ${index + 1} · ${d.width} × ${d.height} (${ratioLabel(d)})${tags.length ? ' · ' + tags.join(', ') : ''}`;
+  }
+
+  // Where to put the scrcpy window so it opens (and goes fullscreen) on
+  // monitor `d`: just inside its top-left corner, so a rounding error can
+  // never push it onto the neighbouring screen.
+  function windowPosFor(d) {
+    return { x: d.x + 40, y: d.y + 40 };
+  }
+
+  const api = { monitorLabel, windowPosFor, ratioLabel, parseRes, virtualDisplaySize, resolutionChoices, wmPlan, phoneOverride, barsFor, fitsPhone };
   root.ScrcpyFit = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

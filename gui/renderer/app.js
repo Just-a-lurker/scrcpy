@@ -1467,7 +1467,9 @@ function pickApp(app) {
 // the matching scrcpy flags (--new-display, --fullscreen or
 // --window-width/--window-height), so the flag list and the command stay the
 // source of truth.
-let monitor = null; // { width, height } in real pixels
+let monitor = null; // { width, height } in real pixels: the "Play on" monitor
+let displays = []; // every monitor, from the main process
+const MONITOR = '@monitor'; // chosen "Play on" display id; unset = automatic
 let phoneSize = null; // physical size of the selected phone
 let phoneDensity = null; // its current density (override or physical)
 let phonePending = false; // still resized from an earlier session
@@ -1514,7 +1516,7 @@ function fitFullscreen(card) {
 // Every key the cards can touch, so one redraw covers them all.
 const FIT_KEYS = ['new-display', 'fullscreen', 'window-width', 'window-height', FIT_WM,
   '@vd-res', '@vd-mode', '@wm-res', '@wm-mode', WM_ORIENT, 'capture-orientation', F.EXACT,
-  'display-id', 'no-video', 'crop', 'video-source'];
+  'display-id', 'no-video', 'crop', 'video-source', MONITOR, 'window-x', 'window-y'];
 
 function wmOrient() {
   return F.ORIENT[state[WM_ORIENT]?.value] ?? null;
@@ -1647,8 +1649,64 @@ function syncFit() {
   renderFitCard('wm');
 }
 
+// The monitor scrcpy should open on: the chosen one, else the one the
+// launcher is on.
+function chosenDisplay() {
+  const id = state[MONITOR]?.value;
+  return displays.find((d) => d.id === id) ?? displays.find((d) => d.current) ?? displays[0] ?? null;
+}
+
+// Keep --window-x/--window-y on the chosen monitor. The corner can move when
+// the desktop is rearranged, so this runs on every refresh.
+function applyMonitorFlags() {
+  const d = state[MONITOR] && displays.find((x) => x.id === state[MONITOR].value);
+  if (!d) return false;
+  const { x, y } = ScrcpyFit.windowPosFor(d);
+  const same = state['window-x']?.value === String(x) && state['window-y']?.value === String(y);
+  state['window-x'] = { on: false, value: String(x) };
+  state['window-y'] = { on: false, value: String(y) };
+  return !same;
+}
+
+function clearMonitorChoice() {
+  delete state[MONITOR];
+  delete state['window-x'];
+  delete state['window-y'];
+}
+
+function renderMonitorPick() {
+  $('#monitorPick').hidden = displays.length < 2;
+  const sel = $('#monitorSel');
+  sel.replaceChildren(
+    el('option', { value: '' }, 'Automatic (where Windows puts it)'),
+    ...displays.map((d, i) => el('option', { value: d.id }, ScrcpyFit.monitorLabel(d, i))),
+  );
+  sel.value = state[MONITOR]?.value ?? '';
+}
+
+// Read the monitors and point the sizes and the "Play on" list at the chosen
+// one. Needs no phone and no adb, so it also runs at startup.
+async function refreshMonitors() {
+  displays = await api.screenList();
+  let moved = false;
+  if (state[MONITOR] && !displays.some((d) => d.id === state[MONITOR].value)) {
+    clearMonitorChoice();
+    moved = true;
+    log('[Play on: that monitor is no longer connected, back to automatic]\n', 'l-meta');
+  } else if (applyMonitorFlags()) {
+    moved = true;
+  }
+  const shown = chosenDisplay();
+  monitor = shown ? { width: shown.width, height: shown.height } : await api.screenSize();
+  renderMonitorPick();
+  if (moved) {
+    if (activeFit()) applyFitFlags();
+    fitChanged();
+  }
+}
+
 async function updateFitFacts() {
-  monitor = await api.screenSize();
+  await refreshMonitors();
   phoneSize = null;
   phoneDensity = null;
   phonePending = false;
@@ -1737,6 +1795,19 @@ async function restorePhoneSize(selector, refresh = true) {
 }
 
 function wireFit() {
+  $('#monitorSel').addEventListener('change', (e) => {
+    if (e.target.value) {
+      state[MONITOR] = { on: true, value: e.target.value };
+      applyMonitorFlags();
+    } else {
+      clearMonitorChoice();
+    }
+    const shown = chosenDisplay();
+    if (shown) monitor = { width: shown.width, height: shown.height };
+    if (activeFit()) applyFitFlags();
+    fitChanged();
+    updateFitFacts();
+  });
   $('#vdOn').addEventListener('change', (e) => enableVirtualDisplay(e.target.checked));
   $('#wmOn').addEventListener('change', (e) => enablePhoneResize(e.target.checked));
   for (const card of ['vd', 'wm']) {
@@ -1849,6 +1920,7 @@ function wire() {
   $('#openPair').addEventListener('click', openPairDialog);
 
   wireFit();
+  refreshMonitors().then(syncFit);
 
   const appDialog = $('#appDialog');
   $('#appClose').addEventListener('click', () => appDialog.close());

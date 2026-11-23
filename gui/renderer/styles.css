@@ -528,6 +528,8 @@ select.input { cursor: pointer; padding-right: 6px; }
 .fit-facts b { color: var(--ink); }
 .fit-facts .warn { color: var(--warn); font-weight: 600; }
 .fit-facts .good { color: var(--ok); font-weight: 600; }
+.monitor-pick { margin-top: 14px; max-width: 460px; }
+.monitor-pick select { width: 100%; }
 .fit-methods { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin: 14px 0 14px; }
 .fit-method {
   display: flex;
