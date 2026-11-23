@@ -541,8 +541,17 @@ select.input { cursor: pointer; padding-right: 6px; }
   transition: border-color var(--ease), box-shadow var(--ease), background var(--ease);
 }
 .fit-method:hover { border-color: var(--line-strong); }
-.fit-method.active { border-color: var(--accent); background: linear-gradient(var(--accent-soft), var(--accent-soft) 64px, var(--surface) 64px); box-shadow: 0 0 0 3px var(--accent-ring); }
-.fit-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.fit-method.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+/* Full-bleed header strip; the active tint lives on the strip itself, so it always ends at its bottom edge. */
+.fit-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  margin: -16px -18px 2px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  border-radius: calc(var(--r-md) - 1.5px) calc(var(--r-md) - 1.5px) 0 0;
+  transition: background var(--ease), border-color var(--ease);
+}
+.fit-method.active .fit-head { background: var(--accent-soft); border-bottom-color: transparent; }
 .fit-method h3 { margin: 0; font-size: var(--fs-lg); font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tag { padding: 1px 9px; border-radius: 999px; background: var(--accent-soft); font-size: var(--fs-xs); font-weight: 600; color: var(--accent-text); }
 .fit-method p { margin: 0; font-size: var(--fs-sm); color: var(--ink-2); max-width: 62ch; }
