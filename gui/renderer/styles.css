@@ -440,15 +440,17 @@ select.input { cursor: pointer; padding-right: 6px; }
 .qfield .input { width: 100%; }
 .qinline { display: flex; flex-direction: column; gap: 3px; }
 
-/* Option rows */
+/* Option rows: flat, divided by hairlines, full-bleed inside the section card.
+   A set option gets a straight accent bar on the card edge and a small "Set" pill. */
+#sections .section { overflow: hidden; }
 .opt {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
   gap: 6px 32px;
-  margin: 0 -12px;
-  padding: 13px 12px;
+  margin: 0 -22px;
+  padding: 14px 22px;
   border-bottom: 1px solid var(--line);
-  border-radius: var(--r-md);
   transition: background var(--ease);
 }
 .opt:hover { background: var(--surface-2); }
@@ -457,17 +459,27 @@ select.input { cursor: pointer; padding-right: 6px; }
 .opt-text { min-width: 0; }
 .opt-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
 .opt-label { font-weight: 600; }
-/* A set option: an accent dot before its name and an accent stripe. */
-.opt.is-set { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
-.opt.is-set .opt-label::before {
+.opt.is-set::before {
   content: "";
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin: 0 8px 1px 0;
-  border-radius: 50%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
   background: var(--accent);
-  vertical-align: middle;
+}
+.opt.is-set .opt-label::after {
+  content: "Set";
+  margin-left: 9px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: 1px;
 }
 .flag { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-3); user-select: text; }
 .opt.is-set .flag.long { color: var(--accent-text); font-weight: 600; }
