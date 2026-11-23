@@ -11,15 +11,13 @@
     "start": "electron .",
     "extract": "node scripts/extract-options.mjs",
     "test": "node --test test/args.test.js test/apps.test.js test/fit.test.js test/flags.test.js test/validate.test.js test/notices.test.js test/presets.test.js test/encoders.test.js",
-    "pack": "electron-builder --win dir"
+    "pack": "npx --yes electron-builder@26.18.0 --win dir"
   },
   "devDependencies": {
-    "electron": "45.2.3",
-    "electron-builder": "26.18.0"
+    "electron": "45.2.3"
   },
   "allowScripts": {
-    "electron@45.2.3": true,
-    "electron-winstaller": false
+    "electron@45.2.3": true
   },
   "build": {
     "appId": "dev.scrcpy.launcher",

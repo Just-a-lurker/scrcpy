@@ -28,6 +28,8 @@ used for the device list.
 npm run pack
 ```
 
+`electron-builder` is not installed with the app, which keeps `npm install` free of its deprecated dependencies; `npm run pack` fetches it on demand (needs internet the first time).
+
 This writes `dist/win-unpacked/`, a folder that runs without installing: start
 `scrcpy Launcher.exe` inside it. Nothing is compressed or unpacked, so it
 builds in seconds and starts at once. Copy `scrcpy.exe` (with the files from
