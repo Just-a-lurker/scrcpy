@@ -89,3 +89,25 @@ test('codec option rows reach the scrcpy command', () => {
   v = F.setCodecOption(v, 'i-frame-interval', '2');
   assert.deepStrictEqual(args({ 'video-codec-options': { value: v } }), ['--video-codec-options=video-qp-max=30,i-frame-interval=2']);
 });
+
+test('a profile leaves out the Play on monitor and its window corner', () => {
+  const s = { fullscreen: { on: true }, '@monitor': { on: true, value: '17' },
+    'window-x': { on: false, value: '-1880' }, 'window-y': { on: false, value: '736' } };
+  assert.deepStrictEqual(F.withoutMonitor(s), { fullscreen: { on: true } });
+  assert.ok(s['@monitor'], 'the state itself is not changed');
+});
+
+test('a hand-set window corner stays in a profile when no monitor is chosen', () => {
+  const s = { 'window-x': { on: false, value: '40' } };
+  assert.deepStrictEqual(F.withoutMonitor(s), s);
+});
+
+test('loading a profile keeps the current monitor choice', () => {
+  const current = { '@monitor': { on: true, value: '17' },
+    'window-x': { on: false, value: '-1880' }, 'window-y': { on: false, value: '736' } };
+  const profile = { fullscreen: { on: true }, 'window-x': { on: false, value: '40' } };
+  assert.deepStrictEqual(F.keepMonitor(profile, current), { fullscreen: { on: true }, ...current });
+  assert.deepStrictEqual(F.keepMonitor(profile, { fullscreen: { on: true } }), profile);
+  const old = { '@monitor': { on: true, value: '99' }, 'window-x': { on: false, value: '0' }, 'window-y': { on: false, value: '0' } };
+  assert.deepStrictEqual(F.keepMonitor(old, {}), {});
+});

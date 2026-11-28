@@ -157,8 +157,27 @@
     return JSON.stringify(v);
   }
 
+  // The "Play on" monitor belongs to this PC, not to a profile: loading a
+  // profile keeps the current choice and saving one leaves it out. With a
+  // monitor chosen, --window-x/--window-y are its corner, so they go with it.
+  const MONITOR = '@monitor';
+  const MONITOR_KEYS = [MONITOR, 'window-x', 'window-y'];
+
+  function withoutMonitor(state) {
+    const s = { ...state };
+    if (s[MONITOR]) for (const k of MONITOR_KEYS) delete s[k];
+    return s;
+  }
+
+  // `next` (a profile) with the monitor choice of `current`, if it has one.
+  function keepMonitor(next, current) {
+    const s = withoutMonitor(next);
+    if (current?.[MONITOR]) for (const k of MONITOR_KEYS) if (current[k]) s[k] = current[k];
+    return s;
+  }
+
   const api = {
-    EXACT, ORIENT, applyFit, disableFit, clearCaptureLock, clearVirtualDisplayConflicts,
+    EXACT, ORIENT, MONITOR, withoutMonitor, keepMonitor, applyFit, disableFit, clearCaptureLock, clearVirtualDisplayConflicts,
     adbSelector, closeAppPlan, stableJson, splitCodecOptions, getCodecOption, setCodecOption,
   };
   root.ScrcpyFlags = api;

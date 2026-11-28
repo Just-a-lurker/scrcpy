@@ -1469,7 +1469,7 @@ function pickApp(app) {
 // source of truth.
 let monitor = null; // { width, height } in real pixels: the "Play on" monitor
 let displays = []; // every monitor, from the main process
-const MONITOR = '@monitor'; // chosen "Play on" display id; unset = automatic
+const MONITOR = F.MONITOR; // chosen "Play on" display id; unset = automatic. Not part of a profile.
 let phoneSize = null; // physical size of the selected phone
 let phoneDensity = null; // its current density (override or physical)
 let phonePending = false; // still resized from an earlier session
@@ -1872,7 +1872,7 @@ function markProfileDirty() {
   const sel = $('#profileSelect');
   const name = sel.value;
   const opt = name && [...sel.options].find((o) => o.value === name);
-  const dirty = !!opt && F.stableJson(settings.profiles?.[name] ?? {}) !== F.stableJson(state);
+  const dirty = !!opt && F.stableJson(F.withoutMonitor(settings.profiles?.[name] ?? {})) !== F.stableJson(F.withoutMonitor(state));
   if (opt) opt.textContent = dirty ? `${name} (edited)` : name;
   const save = $('#saveProfileNow');
   save.disabled = !dirty;
@@ -1880,7 +1880,7 @@ function markProfileDirty() {
 }
 
 async function saveProfile(name) {
-  settings.profiles = { ...(settings.profiles ?? {}), [name]: structuredClone(state) };
+  settings.profiles = { ...(settings.profiles ?? {}), [name]: F.withoutMonitor(structuredClone(state)) };
   settings.lastProfile = name;
   await api.setSettings({ profiles: settings.profiles, lastProfile: name });
   renderProfiles();
@@ -2045,7 +2045,7 @@ function wire() {
     $('#deleteProfile').disabled = !name;
     settings.lastProfile = name;
     if (name) {
-      state = structuredClone(settings.profiles[name]);
+      state = F.keepMonitor(structuredClone(settings.profiles[name]), state);
       syncAll();
       toast(`Loaded profile "${name}"`);
     }
